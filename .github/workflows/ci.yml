@@ -18,6 +18,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e '.[dev]'
+      - run: pip install mcp
+        if: matrix.python-version != '3.9'  # MCP SDK needs Python 3.10+
       - run: ruff check .
       - run: pytest
 
@@ -29,5 +31,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e '.[dev]'
+      - run: pip install -e '.[dev,mcp]'
       - run: pytest -m live

@@ -8,18 +8,18 @@ import sys
 import time
 from dataclasses import asdict
 
-from .checkers import CHECKERS, check_all
+from .checkers import PLATFORMS, check_all
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="handlecheck",
-        description="Check whether usernames exist on YouTube, TikTok, Instagram and Facebook.",
+        description="Check whether usernames exist on YouTube, TikTok, Instagram, Facebook, X, GitHub and Reddit.",
     )
     p.add_argument("usernames", nargs="*", help="usernames to check (leading @ is optional)")
     p.add_argument("-f", "--file", help="file with one username per line ('-' for stdin)")
     p.add_argument(
-        "-p", "--platform", action="append", choices=sorted(CHECKERS),
+        "-p", "--platform", action="append", choices=sorted(PLATFORMS),
         help="limit to a platform (repeatable); default: all",
     )
     p.add_argument("--format", choices=["table", "json", "csv"], default="table")

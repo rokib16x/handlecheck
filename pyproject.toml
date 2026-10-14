@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "handlecheck"
-version = "0.1.0"
-description = "Check whether a username exists on YouTube, TikTok, Instagram and Facebook without logging in."
+version = "0.2.0"
+description = "Check whether a username exists on YouTube, TikTok, Instagram, Facebook, X, GitHub and Reddit without logging in. CLI, library, MCP server and HTTP API."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-keywords = ["username", "osint", "social-media", "tiktok", "instagram", "facebook", "youtube"]
+keywords = ["mcp", "github", "reddit", "twitter", "username", "osint", "social-media", "tiktok", "instagram", "facebook", "youtube"]
 classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
@@ -18,10 +18,13 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
+mcp = ["mcp>=1.2"]  # needs Python 3.10+
 dev = ["pytest>=7", "ruff>=0.4"]
 
 [project.scripts]
 handlecheck = "handlecheck.cli:main"
+handlecheck-mcp = "handlecheck.mcp_server:main"
+handlecheck-api = "handlecheck.api:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/handlecheck"]

@@ -8,12 +8,12 @@ def stub(monkeypatch, status, body=""):
     monkeypatch.setattr(checkers.http, "fetch", lambda *a, **k: (status, body))
 
 
-@pytest.mark.parametrize("name", ["a", "khaby.lame", "the_rock", "__x__", "x" * 64, "@google"])
+@pytest.mark.parametrize("name", ["a", "khaby.lame", "the_rock", "__x__", "x" * 64, "@google", "sp-ez"])
 def test_valid_usernames(name):
     assert validate_username(name) == name.lstrip("@")
 
 
-@pytest.mark.parametrize("name", ["", "bad name", "../etc/passwd", "a/b", "x" * 65, "a?b=1", "é"])
+@pytest.mark.parametrize("name", ["", "bad name", "../etc/passwd", "a/b", "x" * 65, "a?b=1", "é", "a@b"])
 def test_invalid_usernames(name):
     with pytest.raises(ValueError):
         validate_username(name)
@@ -33,7 +33,7 @@ def test_invalid_username_makes_no_request(monkeypatch):
 )
 def test_youtube(monkeypatch, status, expected):
     stub(monkeypatch, status)
-    assert check("youtube", "x").status is expected
+    assert check("youtube", "someone").status is expected
 
 
 @pytest.mark.parametrize(
@@ -47,13 +47,13 @@ def test_youtube(monkeypatch, status, expected):
 )
 def test_tiktok(monkeypatch, body, expected):
     stub(monkeypatch, 200, body)
-    assert check("tiktok", "x").status is expected
+    assert check("tiktok", "someone").status is expected
 
 
 def test_tiktok_retries_once(monkeypatch):
     bodies = iter(["challenge", '"statusCode":0'])
     monkeypatch.setattr(checkers.http, "fetch", lambda *a, **k: (200, next(bodies)))
-    assert check("tiktok", "x").status is Status.FOUND
+    assert check("tiktok", "someone").status is Status.FOUND
 
 
 @pytest.mark.parametrize(
@@ -76,7 +76,7 @@ def test_instagram(monkeypatch, status, body, expected):
 )
 def test_facebook(monkeypatch, status, expected):
     stub(monkeypatch, status)
-    assert check("facebook", "x").status is expected
+    assert check("facebook", "someone.real").status is expected
 
 
 def test_network_error_is_unknown(monkeypatch):
@@ -84,5 +84,51 @@ def test_network_error_is_unknown(monkeypatch):
         raise TimeoutError
 
     monkeypatch.setattr(checkers.http, "fetch", boom)
-    r = check("youtube", "x")
+    r = check("youtube", "someone")
     assert r.status is Status.UNKNOWN and r.detail == "TimeoutError"
+
+
+@pytest.mark.parametrize(
+    "platform,title,expected",
+    [
+        ("reddit", "spez (u/spez) - Reddit", Status.FOUND),
+        ("reddit", "Reddit - The heart of the internet", Status.NOT_FOUND),
+        ("reddit", "Just a moment...", Status.UNKNOWN),
+    ],
+)
+def test_reddit(monkeypatch, platform, title, expected):
+    stub(monkeypatch, 200, f"<title>{title}</title>")
+    assert check(platform, "spez").status is expected
+
+
+@pytest.mark.parametrize("platform", ["x", "github"])
+@pytest.mark.parametrize(
+    "status,expected", [(200, Status.FOUND), (404, Status.NOT_FOUND), (429, Status.UNKNOWN)]
+)
+def test_status_code_platforms(monkeypatch, platform, status, expected):
+    stub(monkeypatch, status)
+    assert check(platform, "someone").status is expected
+
+
+@pytest.mark.parametrize(
+    "platform,name",
+    [
+        ("x", "has.dot"),  # X: letters, digits, underscore only
+        ("x", "waytoolongusername1"),  # X: max 15
+        ("github", "-leading"),  # GitHub: cannot start with a hyphen
+        ("github", "under_score"),
+        ("reddit", "ab"),  # Reddit: min 3
+        ("facebook", "abc"),  # Facebook: min 5
+    ],
+)
+def test_platform_rules_reject_without_network(monkeypatch, platform, name):
+    def boom(*a, **k):
+        raise AssertionError("network used")
+
+    monkeypatch.setattr(checkers.http, "fetch", boom)
+    assert check(platform, name).status is Status.INVALID
+
+
+def test_unknown_platform():
+    with pytest.raises(ValueError):
+        check("myspace", "someone")
