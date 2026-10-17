@@ -132,3 +132,57 @@ def test_platform_rules_reject_without_network(monkeypatch, platform, name):
 def test_unknown_platform():
     with pytest.raises(ValueError):
         check("myspace", "someone")
+
+
+class FakeSMTP:
+    reply = (250, b"2.1.5 OK")
+
+    def __init__(self, *a, **k):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def ehlo(self, *a):
+        pass
+
+    def mail(self, *a):
+        pass
+
+    def rcpt(self, addr):
+        return self.reply
+
+
+@pytest.mark.parametrize(
+    "reply,expected",
+    [
+        ((250, b"2.1.5 OK"), Status.FOUND),
+        ((550, b"5.1.1 The email account that you tried to reach does not exist"), Status.NOT_FOUND),
+        ((550, b"5.7.1 blocked"), Status.UNKNOWN),
+        ((421, b"4.7.0 try later"), Status.UNKNOWN),
+    ],
+)
+def test_gmail(monkeypatch, reply, expected):
+    monkeypatch.setattr(checkers.smtplib, "SMTP", type("S", (FakeSMTP,), {"reply": reply}))
+    assert check("gmail", "someone.real").status is expected
+
+
+def test_gmail_port_blocked_is_unknown(monkeypatch):
+    def boom(*a, **k):
+        raise OSError("blocked")
+
+    monkeypatch.setattr(checkers.smtplib, "SMTP", boom)
+    r = check("gmail", "someone.real")
+    assert r.status is Status.UNKNOWN and "port 25" in r.detail
+
+
+@pytest.mark.parametrize("name", ["short", ".leading1", "trailing1.", "dou..ble1", "has_underscore", "x" * 31])
+def test_gmail_rules_reject_without_network(monkeypatch, name):
+    def boom(*a, **k):
+        raise AssertionError("network used")
+
+    monkeypatch.setattr(checkers.smtplib, "SMTP", boom)
+    assert check("gmail", name).status is Status.INVALID

@@ -1,6 +1,6 @@
 # handlecheck
 
-Check whether a username exists on **YouTube, TikTok, Instagram, Facebook, X, GitHub and Reddit** — without logging in, without API keys. Use it as a **CLI**, a **Python library**, an **MCP server** (Claude Desktop, Claude Code, Cursor, …), an **HTTP API**, or a **Docker image**. The core has zero dependencies.
+Check whether a username exists on **YouTube, TikTok, Instagram, Facebook, X, GitHub, Reddit and Gmail** — without logging in, without API keys. Use it as a **CLI**, a **Python library**, an **MCP server** (Claude Desktop, Claude Code, Cursor, …), an **HTTP API**, or a **Docker image**. The core has zero dependencies.
 
 ```console
 $ handlecheck torvalds zzqxk93jfhw02
@@ -109,11 +109,14 @@ All checks are public, unauthenticated requests:
 | X         | Crawler user agent on `x.com/name`: 200 vs 404 |
 | GitHub    | HTTP 404 vs 200 on `github.com/name` |
 | Reddit    | Crawler user agent; real profiles have `(u/name)` in the title, missing ones get the generic Reddit title |
+| Gmail     | SMTP `RCPT TO` against Google's mail server: `250` = address exists (taken), `550 5.1.1` = no such account (likely available). No mail is sent. |
 
 Adding a platform is one decorated function in [`checkers.py`](src/handlecheck/checkers.py) — see `@platform(...)`.
 
 ## Limitations — please read
 
+- **Gmail needs outbound port 25**, which many home ISPs, cloud hosts and CI runners block. Then you get `UNKNOWN` (with a hint), never a wrong answer; the check may also wait up to 8 s before giving up. Gmail ignores dots (`a.b` = `ab`) and allows only 6-30 letters, digits and dots. This only asks whether a mailbox exists; don't use it to harvest addresses.
+- **Reddit and other sites sometimes drop connections** if you check many names quickly; you get `UNKNOWN`. Retry with a larger `--delay`.
 - **These rely on undocumented behaviour.** Sites change and checks can break or be rate-limited without notice. You then get `UNKNOWN`, not a wrong answer. A weekly CI job runs the live tests so breakage shows up; please open an issue if one breaks.
 - **Facebook** only reliably sees public Pages and vanity URLs. A personal profile with strict privacy settings can show `NOT FOUND` while existing.
 - **X** may return 200 for suspended or protected accounts; that counts as "exists".

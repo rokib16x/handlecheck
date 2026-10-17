@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import smtplib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import Enum
@@ -140,6 +141,37 @@ def _reddit(u: str) -> tuple[Status, str]:
     if "the heart of the internet" in title:  # generic page served for missing users
         return Status.NOT_FOUND, ""
     return Status.UNKNOWN, f"HTTP {status}"
+
+
+GMAIL_MX = "gmail-smtp-in.l.google.com"
+
+
+@platform(
+    "gmail",
+    "mailto:{u}@gmail.com",
+    # Gmail: 6-30 letters/digits/dots; no leading, trailing or consecutive dots
+    r"^(?!.*\.\.)(?!\.)(?!.*\.$)[A-Za-z0-9.]{6,30}$",
+)
+def _gmail(u: str) -> tuple[Status, str]:
+    """Ask Google's mail server whether `u@gmail.com` would accept mail (SMTP RCPT TO).
+
+    No message is sent and no login is used. Needs outbound port 25, which many home
+    ISPs and cloud hosts (including GitHub Actions) block; that yields UNKNOWN.
+    FOUND means the address is taken. Gmail ignores dots, so a.b and ab are the same.
+    """
+    try:
+        with smtplib.SMTP(GMAIL_MX, 25, timeout=8) as smtp:
+            smtp.ehlo("example.com")
+            smtp.mail("check@example.com")
+            code, msg = smtp.rcpt(f"{u}@gmail.com")
+    except (OSError, smtplib.SMTPException) as e:
+        return Status.UNKNOWN, f"SMTP unreachable ({type(e).__name__}); is port 25 blocked?"
+    text = msg.decode("utf-8", errors="ignore") if isinstance(msg, bytes) else str(msg)
+    if code in (250, 251):
+        return Status.FOUND, "address exists (taken)"
+    if code == 550 and "5.1.1" in text:
+        return Status.NOT_FOUND, "no such Gmail account (likely available)"
+    return Status.UNKNOWN, f"SMTP {code}"
 
 
 # name -> checker, kept for backwards compatibility and easy iteration
